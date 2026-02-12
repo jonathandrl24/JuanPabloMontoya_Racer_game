@@ -14,6 +14,17 @@ const player = {
   color: "#f39c12", // Orange like the reference image
 };
 
+let gameSpeed = 5; // How fast we move forward
+
+let trees = [
+  { z: 500, side: -2.5 },
+  { z: 1000, side: 2.5 },
+  { z: 1500, side: -3.0 },
+  { z: 2000, side: 3.0 },
+  { z: 2500, side: -2.2 },
+];
+const MAX_Z = 2500;
+
 const keys = { Left: false, Right: false };
 
 // --- Input Listeners ---
@@ -40,8 +51,25 @@ function update() {
     backgroundOffset -= 2; // Move mountains left when steering right
   }
 
-  if (player.x < -1.5) player.x = -1.5;
-  if (player.x > 1.5) player.x = 1.5;
+  // 2. Tree movement (moving toward player)
+  trees.forEach((tree) => {
+    tree.z -= gameSpeed;
+    if (tree.z < 1) tree.z = MAX_Z; // Reset to horizon
+  });
+
+  // 3. Player steering
+  const steerSpeed = 0.05;
+  if (keys.Left) {
+    player.x -= steerSpeed;
+    backgroundOffset += 2;
+  }
+  if (keys.Right) {
+    player.x += steerSpeed;
+    backgroundOffset -= 2;
+  }
+
+  if (player.x < -2) player.x = -2;
+  if (player.x > 2) player.x = 2;
 }
 
 function drawBackground() {
@@ -75,6 +103,57 @@ function drawBackground() {
   if (cloudX < -100) cloudX = canvas.width + 100;
   ctx.fillRect(cloudX, 50, 60, 20);
   ctx.fillRect(cloudX + 10, 40, 40, 20);
+}
+
+function drawTrees() {
+  const horizon = canvas.height / 2;
+  const centerX = canvas.width / 2;
+
+  // Sort by Z (furthest first)
+  const sortedTrees = [...trees].sort((a, b) => b.z - a.z);
+
+  sortedTrees.forEach((tree) => {
+    // --- THE PERSPECTIVE MATH ---
+    let scale = 160 / tree.z; // Constant factor for depth
+
+    // Calculate X: Center + (Relative Side Position * screen width * scale)
+    let x = centerX + (tree.side - player.x) * (scale * canvas.width * 0.8);
+
+    // Calculate Y: Horizon + (Offset * scale)
+    // This ensures the BASE of the tree stays on the ground plane
+    let y = horizon + scale * 100;
+
+    let size = scale * 250; // Size scales with distance
+
+    // Only draw if it's on screen and in front of the camera
+    if (tree.z > 10 && y > horizon) {
+      drawPalmTree(x, y, size);
+    }
+  });
+}
+
+function drawPalmTree(x, y, size) {
+  // 1. Draw Trunk (Segmented for a retro look)
+  ctx.fillStyle = "#6d4c41";
+  ctx.fillRect(x - size / 20, y - size, size / 10, size);
+
+  // 2. Draw Palm Leaves (Multiple triangles/ovals for "palm" look)
+  ctx.fillStyle = "#2ecc71";
+
+  // Left leaves
+  ctx.beginPath();
+  ctx.ellipse(x - size / 4, y - size, size / 3, size / 6, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Right leaves
+  ctx.beginPath();
+  ctx.ellipse(x + size / 4, y - size, size / 3, size / 6, 0.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Top leaf
+  ctx.beginPath();
+  ctx.ellipse(x, y - size - size / 8, size / 4, size / 6, 0, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawPlayer() {
@@ -117,27 +196,30 @@ function draw() {
   drawBackground();
 
   // Ground
-  ctx.fillStyle = "#6ab87e";
+  ctx.fillStyle = "#27ae60"; // A darker green looks better for a roadside
   ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
 
   // Road
-  ctx.fillStyle = "#444";
+  ctx.fillStyle = "#34495e"; // Darker asphalt
   ctx.beginPath();
-  ctx.moveTo(canvas.width * 0.45, canvas.height / 2);
-  ctx.lineTo(canvas.width * 0.55, canvas.height / 2);
-  ctx.lineTo(canvas.width * 0.9, canvas.height);
-  ctx.lineTo(canvas.width * 0.1, canvas.height);
+  ctx.moveTo(canvas.width * 0.48, canvas.height / 2); // Narrow horizon
+  ctx.lineTo(canvas.width * 0.52, canvas.height / 2);
+  ctx.lineTo(canvas.width * 1.2, canvas.height); // Very wide bottom
+  ctx.lineTo(canvas.width * -0.2, canvas.height); // Very wide bottom
   ctx.fill();
 
   // Moving lane markers
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 4;
-  ctx.setLineDash([20, 30]);
+  ctx.strokeStyle = "#ecf0f1";
+  ctx.lineWidth = 6;
+  ctx.setLineDash([30, 50]);
   ctx.lineDashOffset = -roadOffset;
   ctx.beginPath();
   ctx.moveTo(canvas.width / 2, canvas.height / 2);
   ctx.lineTo(canvas.width / 2, canvas.height);
   ctx.stroke();
+
+  // 6. Trees
+  drawTrees();
 
   // --- Draw the Car ---
   drawPlayer();
