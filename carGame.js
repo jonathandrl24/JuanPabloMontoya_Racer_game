@@ -4,6 +4,16 @@ const ctx = canvas.getContext("2d");
 canvas.width = 640;
 canvas.height = 360;
 
+// --- 1. PRELOAD IMAGES ---
+const images = {};
+function loadImage(name, src) {
+  images[name] = new Image();
+  images[name].src = src;
+}
+loadImage("player", "models/playerOne.png");
+loadImage("car1", "models/car1.png");
+loadImage("car2", "models/car2.png");
+loadImage("car3", "models/car3.png");
 // --- Game State ---
 let backgroundOffset = 0;
 let roadOffset = 0;
@@ -16,11 +26,16 @@ let decel = 0.1;
 let currentCurve = 0;
 
 const player = {
-  x: 0, // -1 to 1 is the road range
-  width: 80,
-  height: 50,
-  color: "#f39c12",
+  x: 0,
+  width: 230, // Adjusted for sprite proportions
+  height: 150,
 };
+
+let opponents = [
+  { x: -0.5, z: 800, speed: 60, img: "car1" },
+  { x: 0.5, z: 1400, speed: 70, img: "car2" },
+  { x: -0.2, z: 2000, speed: 55, img: "car3" },
+];
 
 let trees = [
   { z: 500, side: -2.5 },
@@ -140,27 +155,44 @@ function drawPalmTree(x, y, size) {
   ctx.ellipse(x + size / 4, y - size, size / 3, size / 6, 0.4, 0, Math.PI * 2);
   ctx.fill();
 }
-
+// Draw players
 function drawPlayer() {
   const screenX = canvas.width / 2;
-  const screenY = canvas.height - 70;
-  ctx.fillStyle = player.color;
-  ctx.fillRect(
-    screenX - player.width / 2,
-    screenY,
-    player.width,
-    player.height
-  );
-  ctx.fillStyle = "#222";
-  ctx.fillRect(
-    screenX - player.width / 3,
-    screenY - 15,
-    player.width / 1.5,
-    20
-  );
-  ctx.fillStyle = "red";
-  ctx.fillRect(screenX - player.width / 2, screenY + 10, 15, 10);
-  ctx.fillRect(screenX + player.width / 2 - 15, screenY + 10, 15, 10);
+  const screenY = canvas.height - 80;
+
+  // Use the loaded player image
+  if (images.player.complete) {
+    ctx.drawImage(
+      images.player,
+      screenX - player.width / 2,
+      screenY - player.width / 3,
+      player.width,
+      player.height
+    );
+  }
+}
+
+function drawOpponents() {
+  const horizon = canvas.height / 2;
+  const centerX = canvas.width / 2;
+
+  const sortedAI = [...opponents].sort((a, b) => b.z - a.z);
+
+  sortedAI.forEach((opt) => {
+    let scale = 160 / opt.z;
+    let x = centerX + (opt.x - player.x) * (scale * canvas.width * 0.8);
+    let y = horizon + scale * 100;
+
+    // Scale sprite size based on distance
+    let w = scale * 400; // Multiplier to make sprites look correct
+    let h = scale * 230;
+
+    if (opt.z > 10 && y > horizon) {
+      if (images[opt.img].complete) {
+        ctx.drawImage(images[opt.img], x - w / 2, y - h, w, h);
+      }
+    }
+  });
 }
 
 function draw() {
@@ -200,6 +232,7 @@ function draw() {
   ctx.stroke();
 
   drawTrees();
+  drawOpponents();
   drawPlayer();
   drawUI(); // <--- This adds the Speedometer back!
 }
