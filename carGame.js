@@ -30,11 +30,17 @@ let currentCurve = 0;
 let isCrashing = false;
 let shakeAmount = 0;
 let collisionCooldown = 0;
+let currentLap = 1;
+const lapsToFinish = 4;
+const lapDistance = 2000; // How long one lap is
+let totalDistance = 0;
+let startTime = 0;
+let finalTime = 0;
 
 const player = {
   x: 0,
-  width: 200, // Adjusted for better screen fit
-  height: 120,
+  width: 240, // Adjusted for better screen fit
+  height: 160,
 };
 
 let opponents = [
@@ -44,11 +50,11 @@ let opponents = [
 ];
 
 let envObjects = [
-  { z: 500,  side: -2.5, type: 'tree' }, 
-  { z: 1000, side: 2.5,  type: 'tree' },  
-  { z: 1500, side: -3.2, type: 'rock' }, 
-  { z: 1800, side: 3.5,  type: 'rock' }, 
-  { z: 2200, side: -2.8, type: 'tree' }
+  { z: 500, side: -2.5, type: "tree" },
+  { z: 1000, side: 2.5, type: "tree" },
+  { z: 1500, side: -3.2, type: "rock" },
+  { z: 1800, side: 3.5, type: "rock" },
+  { z: 2200, side: -2.8, type: "tree" },
 ];
 
 const MAX_Z = 2500;
@@ -72,22 +78,47 @@ window.addEventListener("keyup", (e) => {
   if (e.key === "ArrowDown") keys.Down = false;
 });
 
+window.addEventListener("keydown", (e) => {
+  if (gameState === "START" && e.key === "Enter") {
+    gameState = "PLAYING";
+    startTime = Date.now();
+  }
+
+  if (gameState === "FINISHED" && e.key === "Enter") {
+    // Reset the whole game
+    currentLap = 1;
+    totalDistance = 0;
+    speed = 0;
+    player.x = 0;
+    startTime = Date.now();
+    gameState = "PLAYING";
+  }
+
+  if (e.key === "ArrowLeft") keys.Left = true;
+  if (e.key === "ArrowRight") keys.Right = true;
+  if (e.key === "ArrowUp") keys.Up = true;
+  if (e.key === "ArrowDown") keys.Down = true;
+});
+
 function update() {
   if (shakeAmount > 0) shakeAmount -= 1;
+
+  // Track the time when the game starts
+  if (startTime === 0) startTime = Date.now();
 
   if (keys.Up && !isCrashing) speed += accel;
   else if (keys.Down) speed -= breaking;
   else speed -= decel;
 
   if (isCrashing) {
-      speed -= 2.5; 
-      if (speed <= 10) isCrashing = false;
+    speed -= 2.5;
+    if (speed <= 10) isCrashing = false;
   }
 
   if (speed < 0) speed = 0;
   if (speed > maxSpeed) speed = maxSpeed;
 
-  trackPosition += speed * 0.01; 
+  trackPosition += speed * 0.01;
   roadOffset += speed * 0.1;
 
   // FIX 1: Use envObjects instead of trees
@@ -98,25 +129,25 @@ function update() {
 
   if (collisionCooldown > 0) collisionCooldown--;
 
-  opponents.forEach(opt => {
+  opponents.forEach((opt) => {
     opt.z -= (speed - opt.speed) * 0.2;
 
     if (collisionCooldown === 0 && opt.z > 60 && opt.z < 90) {
-        if (Math.abs(opt.x - player.x) < 0.45) { 
-            handleCollision();
-            collisionCooldown = 80; 
+      if (Math.abs(opt.x - player.x) < 0.45) {
+        handleCollision();
+        collisionCooldown = 80;
       }
     }
 
     if (opt.z < 1) {
-        opt.z = MAX_Z;
-        opt.x = (Math.random() * 1.6) - 0.8;
+      opt.z = MAX_Z;
+      opt.x = Math.random() * 1.6 - 0.8;
     }
     if (opt.z > MAX_Z) opt.z = 1;
   });
 
   currentCurve = Math.sin(trackPosition * 0.4) * 1.2;
-  const steerSpeed = 0.0015 * speed; 
+  const steerSpeed = 0.0015 * speed;
   if (keys.Left) player.x -= steerSpeed;
   if (keys.Right) player.x += steerSpeed;
 
@@ -125,6 +156,20 @@ function update() {
 
   if (player.x < -2.5) player.x = -2.5;
   if (player.x > 2.5) player.x = 2.5;
+
+  totalDistance += speed * 0.01;
+
+  // Check for Lap Completion
+  if (totalDistance >= lapDistance) {
+    if (currentLap < lapsToFinish) {
+      currentLap++;
+      totalDistance = 0; // Reset for next lap
+    } else {
+      // RACE FINISHED
+      finalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+      gameState = "FINISHED";
+    }
+  }
 }
 
 function handleCollision() {
@@ -148,13 +193,21 @@ function drawMenu() {
   ctx.fillText("RETRO RACER", canvas.width / 2, canvas.height / 2 - 40);
 
   ctx.font = "20px 'Courier New'";
-  ctx.fillText("USE ARROW KEYS TO DRIVE", canvas.width / 2, canvas.height / 2 + 20);
-  
+  ctx.fillText(
+    "USE ARROW KEYS TO DRIVE",
+    canvas.width / 2,
+    canvas.height / 2 + 20
+  );
+
   // Make the "Press Enter" text blink
   if (Math.floor(Date.now() / 500) % 2 === 0) {
     ctx.font = "bold 24px 'Courier New'";
     ctx.fillStyle = "yellow";
-    ctx.fillText("PRESS ENTER TO START", canvas.width / 2, canvas.height / 2 + 80);
+    ctx.fillText(
+      "PRESS ENTER TO START",
+      canvas.width / 2,
+      canvas.height / 2 + 80
+    );
   }
 }
 
@@ -162,7 +215,7 @@ function drawUI() {
   ctx.fillStyle = "white";
   ctx.font = "bold 24px 'Courier New'";
   ctx.textAlign = "left";
-  ctx.fillText("LAP 1/4", 20, 40);
+  ctx.fillText("LAP " + currentLap + "/" + lapsToFinish, 20, 40);
   ctx.textAlign = "center";
   ctx.fillText("2nd", canvas.width / 2, 40);
   ctx.textAlign = "right";
@@ -172,7 +225,7 @@ function drawUI() {
 
 function drawBackground() {
   const horizon = canvas.height / 2;
-  
+
   // Layer 1: Distant Dark Peaks
   ctx.fillStyle = "#3c2bad";
   for (let i = -1; i < 4; i++) {
@@ -193,7 +246,7 @@ function drawBackground() {
     ctx.lineTo(x + 150, horizon - 100);
     ctx.lineTo(x + 300, horizon);
     ctx.fill();
-    
+
     // Add "Snow" caps for extra detail
     ctx.fillStyle = "#686de0";
     ctx.beginPath();
@@ -226,39 +279,39 @@ function drawEnvironment() {
     let scale = 160 / obj.z;
     let x = centerX + (obj.side - player.x) * (scale * canvas.width * 0.8);
     let y = horizon + scale * 100;
-    let size = scale * 250; 
+    let size = scale * 250;
 
     if (obj.z > 10 && y > horizon) {
-      if (obj.type === 'tree') drawPalmTree(x, y, size);
-      else if (obj.type === 'rock') drawRock(x, y, size);
+      if (obj.type === "tree") drawPalmTree(x, y, size);
+      else if (obj.type === "rock") drawRock(x, y, size);
     }
   });
 }
 
 function drawPalmTree(x, y, size) {
-  ctx.fillStyle = "#6d4c41"; 
+  ctx.fillStyle = "#6d4c41";
   ctx.fillRect(x - size / 20, y - size, size / 10, size);
   ctx.fillStyle = "#2ecc71";
   for (let i = 0; i < 5; i++) {
-     ctx.beginPath();
-     let angle = (i * Math.PI) / 2.5; 
-     ctx.ellipse(x, y - size, size / 2, size / 6, angle, 0, Math.PI * 2);
-     ctx.fill();
+    ctx.beginPath();
+    let angle = (i * Math.PI) / 2.5;
+    ctx.ellipse(x, y - size, size / 2, size / 6, angle, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
 function drawRock(x, y, size) {
   ctx.fillStyle = "#95a5a6";
   ctx.beginPath();
-  ctx.moveTo(x - size/3, y);
-  ctx.lineTo(x, y - size/4);
-  ctx.lineTo(x + size/3, y);
+  ctx.moveTo(x - size / 3, y);
+  ctx.lineTo(x, y - size / 4);
+  ctx.lineTo(x + size / 3, y);
   ctx.fill();
 }
 
 function drawPlayer() {
   const screenX = canvas.width / 2;
-  const screenY = canvas.height - 100;
+  const screenY = canvas.height - 140;
 
   if (images.player.complete) {
     ctx.drawImage(
@@ -270,7 +323,6 @@ function drawPlayer() {
     );
   }
 }
-
 
 function drawOpponents() {
   const horizon = canvas.height / 2;
@@ -292,10 +344,38 @@ function drawOpponents() {
   });
 }
 
+function drawFinishScreen() {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "yellow";
+  ctx.textAlign = "center";
+  ctx.font = "bold 40px 'Courier New'";
+  ctx.fillText("FINISH!", canvas.width / 2, canvas.height / 2 - 40);
+
+  ctx.fillStyle = "white";
+  ctx.font = "24px 'Courier New'";
+  ctx.fillText(
+    "YOUR TIME: " + finalTime + "s",
+    canvas.width / 2,
+    canvas.height / 2 + 10
+  );
+
+  ctx.font = "18px 'Courier New'";
+  ctx.fillText(
+    "PRESS ENTER TO PLAY AGAIN",
+    canvas.width / 2,
+    canvas.height / 2 + 60
+  );
+}
+
 function draw() {
   ctx.save();
   if (shakeAmount > 0) {
-      ctx.translate((Math.random()-0.5)*shakeAmount, (Math.random()-0.5)*shakeAmount);
+    ctx.translate(
+      (Math.random() - 0.5) * shakeAmount,
+      (Math.random() - 0.5) * shakeAmount
+    );
   }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -306,14 +386,14 @@ function draw() {
   drawBackground();
 
   // 2. Ground
-  let groundColor = (Math.floor(trackPosition) % 2 === 0) ? "#27ae60" : "#2ecc71";
+  let groundColor = Math.floor(trackPosition) % 2 === 0 ? "#27ae60" : "#2ecc71";
   ctx.fillStyle = groundColor;
   ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
 
   // 3. Road
   const centerX = canvas.width / 2;
-  const roadCurveX = centerX + (currentCurve * 60);
-  
+  const roadCurveX = centerX + currentCurve * 60;
+
   ctx.fillStyle = "#34495e";
   ctx.beginPath();
   ctx.moveTo(roadCurveX - 10, canvas.height / 2);
@@ -329,27 +409,35 @@ function draw() {
   ctx.lineDashOffset = -roadOffset;
   ctx.beginPath();
   ctx.moveTo(roadCurveX, canvas.height / 2);
-  ctx.lineTo(centerX - (player.x * canvas.width), canvas.height);
+  ctx.lineTo(centerX - player.x * canvas.width, canvas.height);
   ctx.stroke();
 
   // FIX 2: Call drawEnvironment() instead of drawTrees()
   drawEnvironment();
-  drawOpponents();
-  drawPlayer();
-  drawUI();
+  if (gameState === "PLAYING") {
+    drawOpponents();
+  }
+  if (gameState === "PLAYING") {
+    drawPlayer();
+  }
+  if (gameState === "PLAYING") {
+    drawUI();
+  }
 
   ctx.restore();
 }
 
 function mainLoop() {
   if (gameState === "START") {
-    // Keep the background moving slowly for effect
-    backgroundOffset += 1; 
-    draw(); // Draw the scenery
-    drawMenu(); // Draw the text on top
+    backgroundOffset += 1;
+    draw();
+    drawMenu();
   } else if (gameState === "PLAYING") {
     update();
     draw();
+  } else if (gameState === "FINISHED") {
+    draw(); // Draw the final frame of the race
+    drawFinishScreen();
   }
   requestAnimationFrame(mainLoop);
 }
