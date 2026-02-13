@@ -43,11 +43,14 @@ const player = {
   height: 160,
 };
 
+// Each rival starts at a different distance ahead of the start line
 let opponents = [
-  { x: -0.5, z: 800, speed: 60, img: "car1" },
-  { x: 0.5, z: 1400, speed: 70, img: "car2" },
-  { x: -0.2, z: 2000, speed: 55, img: "car3" },
+  { name: "Rival 1", x: -0.5, distance: 300, speed: 68, img: "car1" },
+  { name: "Rival 2", x: 0.5, distance: 600, speed: 72, img: "car2" },
+  { name: "Rival 3", x: -0.2, distance: 1000, speed: 65, img: "car3" },
 ];
+
+let playerPosition = 4; // We start in last place (4th)
 
 let envObjects = [
   { z: 500, side: -2.5, type: "tree" },
@@ -127,23 +130,25 @@ function update() {
     if (obj.z < 1) obj.z = MAX_Z;
   });
 
+  // Move Opponents (AI Rivals)
   if (collisionCooldown > 0) collisionCooldown--;
 
   opponents.forEach((opt) => {
-    opt.z -= (speed - opt.speed) * 0.2;
+    // 1. Rivals move forward at their own constant speed
+    opt.distance += opt.speed * 0.01;
 
-    if (collisionCooldown === 0 && opt.z > 60 && opt.z < 90) {
+    // 2. Calculate their relative Z position to the player for drawing
+    // (If they are 500 units ahead of you, their Z is 500)
+    let relativeZ = (opt.distance - totalDistance) * 10;
+    opt.z = relativeZ;
+
+    // 3. Collision Detection (Only if they are within view)
+    if (collisionCooldown === 0 && opt.z > 60 && opt.z < 110) {
       if (Math.abs(opt.x - player.x) < 0.45) {
         handleCollision();
         collisionCooldown = 80;
       }
     }
-
-    if (opt.z < 1) {
-      opt.z = MAX_Z;
-      opt.x = Math.random() * 1.6 - 0.8;
-    }
-    if (opt.z > MAX_Z) opt.z = 1;
   });
 
   currentCurve = Math.sin(trackPosition * 0.4) * 1.2;
@@ -170,6 +175,16 @@ function update() {
       gameState = "FINISHED";
     }
   }
+
+  // --- CALCULATE RACING POSITION ---
+  let rank = 1;
+  opponents.forEach((opt) => {
+    // If the opponent has traveled more distance than you, they are ahead
+    if (opt.distance > totalDistance) {
+      rank++;
+    }
+  });
+  playerPosition = rank;
 }
 
 function handleCollision() {
@@ -217,7 +232,19 @@ function drawUI() {
   ctx.textAlign = "left";
   ctx.fillText("LAP " + currentLap + "/" + lapsToFinish, 20, 40);
   ctx.textAlign = "center";
-  ctx.fillText("2nd", canvas.width / 2, 40);
+  // --- DYNAMIC POSITIONING ---
+  let posText =
+    playerPosition +
+    (playerPosition === 1
+      ? "st"
+      : playerPosition === 2
+      ? "nd"
+      : playerPosition === 3
+      ? "rd"
+      : "th");
+  ctx.textAlign = "center";
+  ctx.fillText(posText, canvas.width / 2, 40);
+
   ctx.textAlign = "right";
   ctx.fillText(Math.floor(speed * 2.2), canvas.width - 20, 40);
   ctx.textAlign = "left";
@@ -351,19 +378,22 @@ function drawFinishScreen() {
   ctx.fillStyle = "yellow";
   ctx.textAlign = "center";
   ctx.font = "bold 40px 'Courier New'";
-  ctx.fillText("FINISH!", canvas.width / 2, canvas.height / 2 - 40);
+
+  let result =
+    playerPosition === 1 ? "YOU WIN!" : "FINISHED " + playerPosition + "th";
+  ctx.fillText(result, canvas.width / 2, canvas.height / 2 - 40);
 
   ctx.fillStyle = "white";
   ctx.font = "24px 'Courier New'";
   ctx.fillText(
-    "YOUR TIME: " + finalTime + "s",
+    "TIME: " + finalTime + "s",
     canvas.width / 2,
     canvas.height / 2 + 10
   );
 
   ctx.font = "18px 'Courier New'";
   ctx.fillText(
-    "PRESS ENTER TO PLAY AGAIN",
+    "PRESS ENTER TO RESTART",
     canvas.width / 2,
     canvas.height / 2 + 60
   );
