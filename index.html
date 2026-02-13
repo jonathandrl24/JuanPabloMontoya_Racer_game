@@ -4,43 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Juan pablo Montoya Racer game</title>
-    <style>
-      /* CSS: Setup the screen and center the game */
-      body {
-        margin: 0;
-        padding: 0;
-        background: #222;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        overflow: hidden;
-        font-family: "Courier New", Courier, monospace;
-      }
-
-      #game-container {
-        position: relative;
-        border: 4px solid #fff;
-        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-      }
-
-      canvas {
-        display: block;
-        background: #87ceeb; /* Sky color */
-        image-rendering: pixelated; /* Keeps the pixel-art look crisp */
-      }
-
-      .ui-layer {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        color: white;
-        font-weight: bold;
-        font-size: 20px;
-        text-shadow: 2px 2px #000;
-        pointer-events: none;
-      }
-    </style>
+    <link rel="stylesheet" href="style.css">
   </head>
   <body>
     <div id="game-container">
