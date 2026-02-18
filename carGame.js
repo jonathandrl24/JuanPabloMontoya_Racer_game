@@ -151,7 +151,6 @@ function update() {
     }
   });
 
-  currentCurve = Math.sin(trackPosition * 0.4) * 1.2;
   const steerSpeed = 0.0015 * speed;
   if (keys.Left) player.x -= steerSpeed;
   if (keys.Right) player.x += steerSpeed;
