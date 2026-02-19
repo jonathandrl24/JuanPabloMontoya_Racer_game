@@ -288,60 +288,264 @@ function drawUI() {
 
 function drawBackground() {
   const horizon = canvas.height / 2;
-  ctx.fillStyle = "#3c2bad";
+
+  // 1. GRADIENT SKY (Banded for a retro look)
+  // We draw 4 bands of color to simulate a sunset/atmosphere
+  const skyColors = ["#1a1a4e", "#24247e", "#3c2bad", "#70a1ff"];
+  const bandHeight = horizon / skyColors.length;
+  skyColors.forEach((color, i) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, i * bandHeight, canvas.width, bandHeight + 1);
+  });
+
+  // 2. RETRO STRIPED SUN
+  // This stays behind the mountains
+  let sunX = (450 + backgroundOffset * 0.1) % (canvas.width + 300);
+  if (sunX < -150) sunX = canvas.width + 150;
+
+  ctx.fillStyle = "#ffdd59";
+  ctx.beginPath();
+  ctx.arc(sunX, horizon - 80, 60, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Add "Vaporwave" stripes to the sun
+  ctx.fillStyle = skyColors[1];
+  for (let i = 0; i < 5; i++) {
+    ctx.fillRect(sunX - 70, horizon - 110 + i * 15, 140, 3 + i);
+  }
+
+  // 3. FAR MOUNTAINS (Jagged Silhouette)
+  // We add extra "points" to the path to make them look rocky, not like geometric triangles
+  ctx.fillStyle = "#1a1a4e";
   for (let i = -1; i < 4; i++) {
     let x = i * 400 + ((backgroundOffset * 0.3) % 400);
+    let h = 180;
+
     ctx.beginPath();
     ctx.moveTo(x, horizon);
-    ctx.lineTo(x + 200, horizon - 150);
+    ctx.lineTo(x + 100, horizon - h * 0.6); // Shoulder
+    ctx.lineTo(x + 180, horizon - h); // Peak
+    ctx.lineTo(x + 220, horizon - h * 0.8); // Notch
+    ctx.lineTo(x + 280, horizon - h * 0.9); // Second peak
     ctx.lineTo(x + 400, horizon);
     ctx.fill();
+
+    // Darker shading on the right face
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.beginPath();
+    ctx.moveTo(x + 180, horizon - h);
+    ctx.lineTo(x + 400, horizon);
+    ctx.lineTo(x + 180, horizon);
+    ctx.fill();
+    ctx.fillStyle = "#1a1a4e";
   }
-  ctx.fillStyle = "#4834d4";
+
+  // 4. NEAR MOUNTAINS (Chiseled with Snow)
   for (let i = -1; i < 5; i++) {
     let x = i * 300 + ((backgroundOffset * 0.7) % 300);
+    let h = 110;
+
+    // Mountain Body
+    ctx.fillStyle = "#4834d4";
     ctx.beginPath();
     ctx.moveTo(x, horizon);
-    ctx.lineTo(x + 150, horizon - 100);
+    ctx.lineTo(x + 120, horizon - h * 0.8);
+    ctx.lineTo(x + 150, horizon - h);
+    ctx.lineTo(x + 180, horizon - h * 0.7);
     ctx.lineTo(x + 300, horizon);
     ctx.fill();
+
+    // SNOW CAP (Follows the jagged peak)
+    ctx.fillStyle = "#dff9fb";
+    ctx.beginPath();
+    ctx.moveTo(x + 150, horizon - h);
+    ctx.lineTo(x + 170, horizon - h + 30);
+    ctx.lineTo(x + 150, horizon - h + 20); // Jagged bottom of snow
+    ctx.lineTo(x + 130, horizon - h + 30);
+    ctx.fill();
+
+    // Side Shading for 3D depth
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.beginPath();
+    ctx.moveTo(x + 150, horizon - h);
+    ctx.lineTo(x + 300, horizon);
+    ctx.lineTo(x + 150, horizon);
+    ctx.fill();
   }
+
+  // 5. CLOUDS (With depth)
+  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+  let cloudX = (100 + backgroundOffset * 0.2) % (canvas.width + 200);
+  // Draw a blocky, retro-style cloud
+  ctx.fillRect(cloudX, 40, 80, 20);
+  ctx.fillRect(cloudX + 20, 30, 40, 20);
 }
 
 function drawEnvironment() {
   const horizon = canvas.height / 2;
   const centerX = canvas.width / 2;
+
+  // 1. SORT BY DEPTH
   const sortedEnv = [...envObjects].sort((a, b) => b.z - a.z);
+
   sortedEnv.forEach((obj) => {
+    // 2. PROJECT TO 2D
     let scale = 160 / obj.z;
     let x = centerX + (obj.side - player.x) * (scale * canvas.width * 0.8);
     let y = horizon + scale * 100;
     let size = scale * 250;
-    if (obj.z > 10 && y > horizon) {
-      if (obj.type === "tree") drawPalmTree(x, y, size);
-      else if (obj.type === "rock") drawRock(x, y, size);
+
+    // 3. ATMOSPHERIC FADING (The Haze)
+    // As objects get further away (lower scale), they fade into the blue sky color
+    let opacity = 1.0;
+    if (obj.z > 1500) {
+      opacity = 1.0 - (obj.z - 1500) / (MAX_Z - 1500);
+    }
+
+    // 4. DRAW ONLY IF ON SCREEN
+    if (obj.z > 5 && y > horizon && x + size > 0 && x - size < canvas.width) {
+      ctx.globalAlpha = Math.max(0, opacity);
+
+      // 5. DYNAMIC GROUND SHADOW
+      // We offset the shadow slightly to the opposite side of the sun
+      let sunX = (450 + backgroundOffset * 0.1) % (canvas.width + 300);
+      let shadowOffset = (x - sunX) * 0.05;
+
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.beginPath();
+      // The shadow stretches more when the object is closer
+      ctx.ellipse(
+        x + shadowOffset,
+        y + scale * 5,
+        size / 3,
+        size / 12,
+        0,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+
+      // 6. DRAW OBJECTS WITH DEPTH DETAIL
+      if (obj.type === "tree") {
+        // Pass a tiny "wind" wobble based on track position
+        let wobble = Math.sin(trackPosition * 2 + obj.z) * (scale * 5);
+        drawPalmTree(x + wobble, y, size);
+      } else if (obj.type === "rock") {
+        drawRock(x, y, size);
+      }
+
+      ctx.globalAlpha = 1.0; // Reset alpha for next object
     }
   });
 }
 
 function drawPalmTree(x, y, size) {
-  ctx.fillStyle = "#6d4c41";
-  ctx.fillRect(x - size / 20, y - size, size / 10, size);
-  ctx.fillStyle = "#2ecc71";
-  for (let i = 0; i < 5; i++) {
+  // 1. TAPERED SEGMENTED TRUNK
+  const segments = 7;
+  const trunkBaseWidth = size / 6;
+
+  for (let i = 0; i < segments; i++) {
+    let percent = i / segments;
+    let nextPercent = (i + 1) / segments;
+
+    // Tapering logic: wider at bottom, narrower at top
+    let currentWidth = trunkBaseWidth * (1 - percent * 0.5);
+    let nextWidth = trunkBaseWidth * (1 - nextPercent * 0.5);
+
+    let segY = y - size * percent;
+    let nextY = y - size * nextPercent;
+
+    // Add a natural curve/lean to the trunk
+    let lean = Math.sin(i * 0.5) * (size / 40);
+    let nextLean = Math.sin((i + 1) * 0.5) * (size / 40);
+
+    // Draw the "Shadow" side
+    ctx.fillStyle = "#5d4037";
     ctx.beginPath();
-    let angle = (i * Math.PI) / 2.5;
-    ctx.ellipse(x, y - size, size / 2, size / 6, angle, 0, Math.PI * 2);
+    ctx.moveTo(x + lean - currentWidth / 2, segY);
+    ctx.lineTo(x + nextLean - nextWidth / 2, nextY);
+    ctx.lineTo(x + nextLean, nextY);
+    ctx.lineTo(x + lean, segY);
     ctx.fill();
+
+    // Draw the "Highlight" side
+    ctx.fillStyle = "#8d6e63";
+    ctx.beginPath();
+    ctx.moveTo(x + lean, segY);
+    ctx.lineTo(x + nextLean, nextY);
+    ctx.lineTo(x + nextLean + nextWidth / 2, nextY);
+    ctx.lineTo(x + lean + currentWidth / 2, segY);
+    ctx.fill();
+
+    // Add horizontal "Bark" lines
+    ctx.strokeStyle = "rgba(0,0,0,0.1)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + lean - currentWidth / 2, segY);
+    ctx.lineTo(x + lean + currentWidth / 2, segY);
+    ctx.stroke();
+  }
+
+  // 2. THE CROWN (The bulbous part where leaves start)
+  ctx.fillStyle = "#3e2723";
+  ctx.beginPath();
+  let crownLean = Math.sin(segments * 0.5) * (size / 40);
+  ctx.arc(x + crownLean, y - size, size / 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 3. DROOPING PALM FRONDS (The Leaves)
+  const leafCount = 10;
+  for (let i = 0; i < leafCount; i++) {
+    ctx.save();
+    ctx.translate(x + crownLean, y - size);
+    ctx.rotate((i * Math.PI * 2) / leafCount);
+
+    // Create a drooping effect using a quadratic curve
+    let leafLen = size * 0.6;
+    let leafWidth = size / 8;
+
+    // Shade alternating leaves
+    ctx.fillStyle = i % 2 === 0 ? "#2ecc71" : "#27ae60";
+
+    // Draw leaf as a "Swaying blade"
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    // Control point creates the "droop"
+    ctx.quadraticCurveTo(leafLen / 2, -leafWidth, leafLen, leafWidth);
+    ctx.quadraticCurveTo(leafLen / 2, leafWidth / 2, 0, 0);
+    ctx.fill();
+
+    // Add a "Spine" to the leaf
+    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(leafLen / 2, -leafWidth / 2, leafLen, leafWidth);
+    ctx.stroke();
+
+    ctx.restore();
   }
 }
 
 function drawRock(x, y, size) {
-  ctx.fillStyle = "#95a5a6";
+  let w = size / 2;
+  let h = size / 4;
+
+  // Sun-lit side (top/left)
+  ctx.fillStyle = "#bdc3c7";
   ctx.beginPath();
-  ctx.moveTo(x - size / 3, y);
-  ctx.lineTo(x, y - size / 4);
-  ctx.lineTo(x + size / 3, y);
+  ctx.moveTo(x - w, y);
+  ctx.lineTo(x - w / 2, y - h);
+  ctx.lineTo(x + w / 4, y - h / 1.5);
+  ctx.lineTo(x, y);
+  ctx.fill();
+
+  // Shadow side (right)
+  ctx.fillStyle = "#7f8c8d";
+  ctx.beginPath();
+  ctx.moveTo(x + w / 4, y - h / 1.5);
+  ctx.lineTo(x + w, y);
+  ctx.lineTo(x, y);
   ctx.fill();
 }
 
@@ -436,25 +640,86 @@ function drawPlayer() {
   const screenX = canvas.width / 2;
   const screenY = canvas.height - 140;
 
-  // EXHAUST GLOW (Juice!)
+  // 1. ENGINE VIBRATION & BOUNCE
+  // Makes the car vibrate slightly based on speed (suspension feel)
+  let vibration =
+    speed > 0 ? Math.sin(Date.now() * 0.1) * (speed / 100) * 2 : 0;
+
+  // 2. STEERING LEAN
+  // Tilts the car sprite slightly when turning left or right
+  let lean = 0;
+  if (keys.Left) lean = -0.05;
+  if (keys.Right) lean = 0.05;
+
+  ctx.save();
+  ctx.translate(screenX, screenY + vibration);
+  ctx.rotate(lean); // Apply the tilt
+
+  // 3. GROUND SHADOW
+  // Anchors the car to the road so it doesn't look like it's floating
+  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+  ctx.beginPath();
+  ctx.ellipse(0, player.height - 10, player.width * 0.4, 15, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4. ELITE AFTERBURNER EFFECTS
   if (keys.Up && speed > 0) {
-    ctx.fillStyle = "rgba(0, 200, 255, 0.6)"; // Match your blue flames
-    ctx.beginPath();
-    // Draw two glows behind the exhaust pipes
-    ctx.arc(screenX - 60, screenY + 110, 20 + exhaustFlicker, 0, Math.PI * 2);
-    ctx.arc(screenX + 60, screenY + 110, 20 + exhaustFlicker, 0, Math.PI * 2);
-    ctx.fill();
+    // Ground Reflection of the flames
+    let gradientRef = ctx.createRadialGradient(
+      0,
+      player.height,
+      0,
+      0,
+      player.height,
+      60
+    );
+    gradientRef.addColorStop(0, "rgba(0, 200, 255, 0.4)");
+    gradientRef.addColorStop(1, "rgba(0, 200, 255, 0)");
+    ctx.fillStyle = gradientRef;
+    ctx.fillRect(-player.width, player.height - 20, player.width * 2, 40);
+
+    // Flickering Flame Glows
+    const drawFlame = (offsetX) => {
+      let size = 25 + exhaustFlicker;
+      // Core (Bright white/blue)
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      ctx.arc(offsetX, player.height - 40, size * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      // Outer Glow
+      let grad = ctx.createRadialGradient(
+        offsetX,
+        player.height - 40,
+        0,
+        offsetX,
+        player.height - 40,
+        size
+      );
+      grad.addColorStop(0, "rgba(0, 200, 255, 0.8)");
+      grad.addColorStop(1, "rgba(0, 200, 255, 0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(offsetX, player.height - 40, size, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    drawFlame(-65); // Left Exhaust
+    drawFlame(65); // Right Exhaust
   }
 
+  // 5. DRAW THE SPRITE
   if (images.player.complete) {
+    // We use -width/2 because we translated the context to screenX
     ctx.drawImage(
       images.player,
-      screenX - player.width / 2,
-      screenY,
+      -player.width / 2,
+      0,
       player.width,
       player.height
     );
   }
+
+  ctx.restore();
 }
 
 function draw() {
