@@ -703,8 +703,8 @@ function drawPlayer() {
       ctx.fill();
     };
 
-    drawFlame(-65); // Left Exhaust
-    drawFlame(65); // Right Exhaust
+    drawFlame(-50); // Left Exhaust
+    drawFlame(50); // Right Exhaust
   }
 
   // 5. DRAW THE SPRITE
@@ -723,6 +723,13 @@ function drawPlayer() {
 }
 
 function draw() {
+  const centerX = canvas.width / 2;
+  const horizon = canvas.height / 2;
+
+  // 1. DRAW STATIC UI BACKGROUND (Doesn't shake)
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 2. START THE WORLD SHAKE (Only affects the scenery)
   ctx.save();
   if (shakeAmount > 0) {
     ctx.translate(
@@ -730,37 +737,93 @@ function draw() {
       (Math.random() - 0.5) * shakeAmount
     );
   }
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 3. SKY & BACKGROUND
   ctx.fillStyle = "#70a1ff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
+  ctx.fillRect(0, 0, canvas.width, horizon);
   drawBackground();
-  let groundColor = Math.floor(trackPosition) % 2 === 0 ? "#27ae60" : "#2ecc71";
-  ctx.fillStyle = groundColor;
-  ctx.fillRect(0, canvas.height / 2, canvas.width, canvas.height / 2);
-  const centerX = canvas.width / 2;
+
+  // 4. THE GROUND (Alternating moving segments)
+  // We use trackPosition to alternate colors for a sense of movement
+  let isDarkSegment = Math.floor(trackPosition) % 2 === 0;
+  ctx.fillStyle = isDarkSegment ? "#27ae60" : "#2ecc71";
+  ctx.fillRect(0, horizon, canvas.width, horizon);
+
+  // 5. THE ROAD SHOULDERS (Dirt/Sand edges)
+  // These provide a transition between the grass and the asphalt
+  ctx.fillStyle = "#d1ccc0";
+  ctx.beginPath();
+  ctx.moveTo(centerX - 40, horizon);
+  ctx.lineTo(centerX + 40, horizon);
+  ctx.lineTo(centerX + (1.8 - player.x) * canvas.width, canvas.height);
+  ctx.lineTo(centerX + (-1.8 - player.x) * canvas.width, canvas.height);
+  ctx.fill();
+
+  // 6. THE ROAD (Asphalt)
   ctx.fillStyle = "#34495e";
   ctx.beginPath();
-  ctx.moveTo(centerX - 10, canvas.height / 2);
-  ctx.lineTo(centerX + 10, canvas.height / 2);
-  ctx.lineTo(centerX + (1.5 - player.x) * canvas.width, canvas.height);
-  ctx.lineTo(centerX + (-1.5 - player.x) * canvas.width, canvas.height);
+  ctx.moveTo(centerX - 15, horizon);
+  ctx.lineTo(centerX + 15, horizon);
+  ctx.lineTo(centerX + (1.3 - player.x) * canvas.width, canvas.height);
+  ctx.lineTo(centerX + (-1.3 - player.x) * canvas.width, canvas.height);
   ctx.fill();
+
+  // 7. RUMBLE STRIPS (Red/White stripes)
+  // This is the "Gold Standard" of retro racers. It adds a massive sense of speed.
+  ctx.strokeStyle = isDarkSegment ? "#eb4d4b" : "#ffffff";
+  ctx.lineWidth = 15;
+  ctx.setLineDash([0, 0]); // Reset for solid lines
+
+  // Left Rumble
+  ctx.beginPath();
+  ctx.moveTo(centerX - 18, horizon);
+  ctx.lineTo(centerX + (-1.3 - player.x) * canvas.width, canvas.height);
+  ctx.stroke();
+
+  // Right Rumble
+  ctx.beginPath();
+  ctx.moveTo(centerX + 18, horizon);
+  ctx.lineTo(centerX + (1.3 - player.x) * canvas.width, canvas.height);
+  ctx.stroke();
+
+  // 8. CENTER LANE MARKERS
   ctx.strokeStyle = "#ecf0f1";
   ctx.lineWidth = 4;
   ctx.setLineDash([20, 40]);
   ctx.lineDashOffset = -roadOffset;
   ctx.beginPath();
-  ctx.moveTo(centerX, canvas.height / 2);
+  ctx.moveTo(centerX, horizon);
   ctx.lineTo(centerX - player.x * canvas.width, canvas.height);
   ctx.stroke();
+
+  // 9. HORIZON HAZE
+  // Blends the sky into the ground for a soft, professional look
+  let haze = ctx.createLinearGradient(0, horizon - 30, 0, horizon + 30);
+  haze.addColorStop(0, "rgba(112, 161, 255, 0)");
+  haze.addColorStop(0.5, "rgba(112, 161, 255, 0.5)");
+  haze.addColorStop(1, "rgba(112, 161, 255, 0)");
+  ctx.fillStyle = haze;
+  ctx.fillRect(0, horizon - 30, canvas.width, 60);
+
+  // 10. OBJECTS
   drawEnvironment();
+
   if (gameState === "PLAYING") {
     drawParticles();
     drawOpponents();
     drawPlayer();
-    drawUI();
   }
-  ctx.restore();
+
+  ctx.restore(); // STOP SHAKING HERE
+
+  // 11. UI (Always stays fixed on top, never shakes)
+  if (gameState === "PLAYING") {
+    drawUI();
+  } else if (gameState === "START") {
+    drawMenu();
+  } else if (gameState === "FINISHED") {
+    drawFinishScreen();
+  }
 }
 
 function mainLoop() {
