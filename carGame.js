@@ -38,6 +38,10 @@ const lapDistance = 2000;
 let startTime = 0;
 let finalTime = 0;
 let playerPosition = 4;
+// MUSIC
+let audioCtx, engineOsc, engineGain;
+let particles = [];
+let exhaustFlicker = 0;
 
 const player = {
   x: 0,
@@ -66,6 +70,7 @@ const keys = { Left: false, Right: false, Up: false, Down: false };
 // --- Input Listeners ---
 window.addEventListener("keydown", (e) => {
   if (gameState === "START" && e.key === "Enter") {
+    initAudio();
     gameState = "PLAYING";
     startTime = Date.now();
   }
@@ -93,6 +98,21 @@ window.addEventListener("keyup", (e) => {
   if (e.key === "ArrowUp") keys.Up = false;
   if (e.key === "ArrowDown") keys.Down = false;
 });
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  engineOsc = audioCtx.createOscillator();
+  engineGain = audioCtx.createGain();
+
+  engineOsc.type = "sawtooth"; // Classic 8-bit engine buzz
+  engineOsc.frequency.setValueAtTime(40, audioCtx.currentTime);
+  engineGain.gain.setValueAtTime(0, audioCtx.currentTime);
+
+  engineOsc.connect(engineGain);
+  engineGain.connect(audioCtx.destination);
+  engineOsc.start();
+}
 
 function update() {
   if (shakeAmount > 0) shakeAmount -= 1;
@@ -161,6 +181,42 @@ function update() {
     finalTime = ((Date.now() - startTime) / 1000).toFixed(2);
     gameState = "FINISHED";
   }
+
+  // 1. Update Audio Pitch
+  if (audioCtx) {
+    let freq = 40 + speed * 1.8; // Higher speed = higher pitch
+    engineOsc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
+
+    let vol = gameState === "PLAYING" ? 0.05 + (speed / maxSpeed) * 0.08 : 0;
+    engineGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.1);
+  }
+
+  // 2. Generate Tire Smoke
+  // Only smoke if moving fast and steering hard
+  if (speed > 40 && (keys.Left || keys.Right)) {
+    for (let i = 0; i < 2; i++) {
+      particles.push({
+        x: canvas.width / 2 + (Math.random() - 0.5) * 100,
+        y: canvas.height - 30,
+        vx: (Math.random() - 0.5) * 4,
+        vy: -Math.random() * 2,
+        size: Math.random() * 15 + 5,
+        life: 1.0,
+      });
+    }
+  }
+
+  // 3. Update Particles
+  particles.forEach((p, i) => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.03;
+    if (p.life <= 0) particles.splice(i, 1);
+  });
+
+  exhaustFlicker = Math.sin(Date.now() * 0.1) * 10;
+
+  // ... (rest of your update function) ...
 }
 
 function handleCollision() {
@@ -331,6 +387,40 @@ function drawFinishScreen() {
     canvas.width / 2,
     canvas.height / 2 + 60
   );
+}
+
+function drawParticles() {
+  particles.forEach((p) => {
+    ctx.fillStyle = `rgba(200, 200, 200, ${p.life * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawPlayer() {
+  const screenX = canvas.width / 2;
+  const screenY = canvas.height - 140;
+
+  // EXHAUST GLOW (Juice!)
+  if (keys.Up && speed > 0) {
+    ctx.fillStyle = "rgba(0, 200, 255, 0.6)"; // Match your blue flames
+    ctx.beginPath();
+    // Draw two glows behind the exhaust pipes
+    ctx.arc(screenX - 60, screenY + 110, 20 + exhaustFlicker, 0, Math.PI * 2);
+    ctx.arc(screenX + 60, screenY + 110, 20 + exhaustFlicker, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (images.player.complete) {
+    ctx.drawImage(
+      images.player,
+      screenX - player.width / 2,
+      screenY,
+      player.width,
+      player.height
+    );
+  }
 }
 
 function draw() {
