@@ -549,35 +549,62 @@ function drawRock(x, y, size) {
   ctx.fill();
 }
 
-function drawPlayer() {
-  const screenX = canvas.width / 2;
-  const screenY = canvas.height - 140;
-  if (images.player.complete) {
-    ctx.drawImage(
-      images.player,
-      screenX - player.width / 2,
-      screenY,
-      player.width,
-      player.height
-    );
-  }
-}
-
 function drawOpponents() {
   const horizon = canvas.height / 2;
   const centerX = canvas.width / 2;
+
+  // 1. SORT BY DEPTH (Painter's Algorithm)
   const sortedAI = [...opponents].sort((a, b) => b.z - a.z);
+
   sortedAI.forEach((opt) => {
+    // 2. PROJECT TO 2D
     let scale = 160 / opt.z;
     let x = centerX + (opt.x - player.x) * (scale * canvas.width * 0.8);
     let y = horizon + scale * 100;
+
+    // Scale widths based on the sprites provided (proportions 220x130)
     let w = scale * 220;
     let h = scale * 130;
-    if (opt.z > 10 && opt.z < 2000) {
-      // Only draw if within reasonable distance
+
+    // 3. VISIBILITY & FADING
+    // Don't draw if behind the camera or too far into the distance
+    if (opt.z > 10 && opt.z < 2500) {
+      ctx.save();
+
+      // ATMOSPHERIC FADE: Far cars blend into the horizon haze
+      let opacity = 1.0;
+      if (opt.z > 1500) opacity = 1.0 - (opt.z - 1500) / 1000;
+      ctx.globalAlpha = Math.max(0, opacity);
+
+      // 4. ENGINE VIBRATION
+      // Makes the rivals look like they are actually driving, not sliding
+      let vibration = Math.sin(Date.now() * 0.2 + opt.z) * (scale * 2);
+      ctx.translate(x, y + vibration);
+
+      // 5. GROUND SHADOW
+      // This is vital to make the AI look like it's touching the asphalt
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, w * 0.45, h * 0.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 6. DRAW THE CAR SPRITE
       if (images[opt.img].complete) {
-        ctx.drawImage(images[opt.img], x - w / 2, y - h, w, h);
+        ctx.drawImage(images[opt.img], -w / 2, -h, w, h);
       }
+
+      // 7. TAIL LIGHT GLOW (The "Chase" Effect)
+      // Adds a subtle red glow to rivals to make them pop against the road
+      if (opt.z < 1000) {
+        ctx.shadowBlur = 15 * scale;
+        ctx.shadowColor = "red";
+        // Draw two small red rectangles over the tail light positions
+        ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+        ctx.fillRect(-w * 0.3, -h * 0.3, w * 0.15, h * 0.1); // Left light
+        ctx.fillRect(w * 0.14, -h * 0.3, w * 0.15, h * 0.1); // Right light
+      }
+
+      ctx.restore();
     }
   });
 }
