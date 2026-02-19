@@ -42,6 +42,8 @@ let playerPosition = 4;
 let audioCtx, engineOsc, engineGain;
 let particles = [];
 let exhaustFlicker = 0;
+// best TIME
+let bestTime = localStorage.getItem("retroRacer_bestTime") || null;
 
 const player = {
   x: 0,
@@ -174,11 +176,17 @@ function update() {
   if (player.x > 2.5) player.x = 2.5;
 
   // 6. Lap & Win Logic
-  // Calculate lap based on global distance. No resetting distance to 0.
   currentLap = Math.floor(playerDistance / lapDistance) + 1;
 
   if (currentLap > lapsToFinish) {
     finalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+
+    // --- HIGH SCORE LOGIC ---
+    if (!bestTime || parseFloat(finalTime) < parseFloat(bestTime)) {
+      bestTime = finalTime;
+      localStorage.setItem("retroRacer_bestTime", bestTime);
+    }
+
     gameState = "FINISHED";
   }
 
@@ -232,16 +240,25 @@ function handleCollision() {
 function drawMenu() {
   ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   ctx.fillStyle = "white";
   ctx.textAlign = "center";
   ctx.font = "bold 50px 'Courier New'";
   ctx.fillText("RETRO RACER", canvas.width / 2, canvas.height / 2 - 40);
+
   ctx.font = "20px 'Courier New'";
   ctx.fillText(
     "USE ARROW KEYS TO DRIVE",
     canvas.width / 2,
     canvas.height / 2 + 20
   );
+
+  // Show Best Time
+  ctx.fillStyle = "#00d2ff";
+  ctx.font = "18px 'Courier New'";
+  let recordText = bestTime ? "RECORD: " + bestTime + "s" : "RECORD: ---";
+  ctx.fillText(recordText, canvas.width / 2, canvas.height / 2 + 130);
+
   if (Math.floor(Date.now() / 500) % 2 === 0) {
     ctx.font = "bold 24px 'Courier New'";
     ctx.fillStyle = "yellow";
@@ -364,6 +381,14 @@ function drawOpponents() {
 function drawFinishScreen() {
   ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // If the current time matches the best time, it's a new record!
+  if (finalTime === bestTime) {
+    ctx.fillStyle = "cyan";
+    ctx.font = "bold 20px 'Courier New'";
+    ctx.fillText("NEW RECORD!", canvas.width / 2, canvas.height / 2 - 80);
+  }
+
   ctx.fillStyle = "yellow";
   ctx.textAlign = "center";
   ctx.font = "bold 40px 'Courier New'";
@@ -374,6 +399,7 @@ function drawFinishScreen() {
         playerPosition +
         (playerPosition === 2 ? "nd" : playerPosition === 3 ? "rd" : "th");
   ctx.fillText(result, canvas.width / 2, canvas.height / 2 - 40);
+
   ctx.fillStyle = "white";
   ctx.font = "24px 'Courier New'";
   ctx.fillText(
@@ -381,11 +407,19 @@ function drawFinishScreen() {
     canvas.width / 2,
     canvas.height / 2 + 10
   );
+
+  ctx.font = "18px 'Courier New'";
+  ctx.fillText(
+    "BEST: " + bestTime + "s",
+    canvas.width / 2,
+    canvas.height / 2 + 40
+  );
+
   ctx.font = "18px 'Courier New'";
   ctx.fillText(
     "PRESS ENTER TO RESTART",
     canvas.width / 2,
-    canvas.height / 2 + 60
+    canvas.height / 2 + 80
   );
 }
 
@@ -456,6 +490,7 @@ function draw() {
   ctx.stroke();
   drawEnvironment();
   if (gameState === "PLAYING") {
+    drawParticles();
     drawOpponents();
     drawPlayer();
     drawUI();
