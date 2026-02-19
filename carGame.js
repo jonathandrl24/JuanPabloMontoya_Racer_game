@@ -204,11 +204,13 @@ function update() {
   if (speed > 40 && (keys.Left || keys.Right)) {
     for (let i = 0; i < 2; i++) {
       particles.push({
-        x: canvas.width / 2 + (Math.random() - 0.5) * 100,
-        y: canvas.height - 30,
+        x: canvas.width / 2 + (Math.random() - 0.5) * 120, // Spread across tires
+        y: canvas.height - 40,
         vx: (Math.random() - 0.5) * 4,
-        vy: -Math.random() * 2,
-        size: Math.random() * 15 + 5,
+        vy: -Math.random() * 3,
+        size: Math.random() * 5 + 5, // Start small
+        growth: Math.random() * 0.5 + 0.2, // NEW: Expand over time
+        color: Math.random() > 0.5 ? "#ecf0f1" : "#bdc3c7", // Variation in smoke color
         life: 1.0,
       });
     }
@@ -216,15 +218,21 @@ function update() {
 
   // 3. Update Particles
   particles.forEach((p, i) => {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life -= 0.03;
-    if (p.life <= 0) particles.splice(i, 1);
+    if (p.isSpark) {
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = "orange";
+      ctx.fillStyle = "white";
+      ctx.fillRect(p.x, p.y, p.size, p.size); // Sparks are square/pixels
+      ctx.shadowBlur = 0; // reset
+    } else {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= 0.03;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
   });
 
   exhaustFlicker = Math.sin(Date.now() * 0.1) * 10;
-
-  // ... (rest of your update function) ...
 }
 
 function handleCollision() {
@@ -656,10 +664,37 @@ function drawFinishScreen() {
 
 function drawParticles() {
   particles.forEach((p) => {
-    ctx.fillStyle = `rgba(200, 200, 200, ${p.life * 0.5})`;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fill();
+    // 1. UPDATE LOGIC (Integrated here for smoothness)
+    p.size += p.growth; // Particles expand as they rise
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.02;
+
+    if (p.life > 0) {
+      ctx.save();
+
+      // 2. SOFT EDGES (Blur effect)
+      // High-end smoke shouldn't have hard pixel edges
+      ctx.globalAlpha = p.life * 0.4;
+
+      // 3. LAYERED CLOUDS
+      // We draw the particle twice: a larger soft outer glow and a tighter core
+      const drawCloud = (color, sizeMult) => {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        // We use slightly randomized offsets to make the smoke look "lumpy"
+        let offsetX = Math.sin(p.life * 10) * 2;
+        ctx.arc(p.x + offsetX, p.y, p.size * sizeMult, 0, Math.PI * 2);
+        ctx.fill();
+      };
+
+      // Draw shadow/outer smoke
+      drawCloud("#7f8c8d", 1.2);
+      // Draw inner bright smoke
+      drawCloud(p.color, 0.8);
+
+      ctx.restore();
+    }
   });
 }
 
